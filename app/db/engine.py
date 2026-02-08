@@ -1,36 +1,23 @@
-"""Database engine configuration with resilience."""
+"""Database engine configuration."""
 
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+import asyncio
+import os
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import text
-from sqlmodel import SQLModel
-
-# Resilience fallback for tenacity
-try:
-    from tenacity import retry, stop_after_attempt, wait_fixed
-    HAS_TENACITY = True
-except ImportError:
-    HAS_TENACITY = False
-    # No-op decorators if tenacity is missing
-    def retry(*args, **kwargs):
-        return lambda f: f
-    def stop_after_attempt(*args, **kwargs):
-        return None
-    def wait_fixed(*args, **kwargs):
-        return None
+from alembic import command
+from alembic.config import Config
+from tenacity import retry, stop_after_attempt, wait_fixed
 
 from app.core.config import settings
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
-if not HAS_TENACITY:
-    logger.warning("Tenacity library not found. Database retries will be disabled.")
-
 # Connection pool settings
 connect_args = {"check_same_thread": False} if "sqlite" in settings.database_url else {}
 
-# Create async engine with pooling and timeout controls
+# Create async engine
 engine = create_async_engine(
     settings.database_url,
     echo=settings.debug,
@@ -47,22 +34,33 @@ async_session = sessionmaker(
     expire_on_commit=False,
 )
 
-@retry(
-    stop=stop_after_attempt(5),
-    wait=wait_fixed(2),
-)
+
+@retry(stop=stop_after_attempt(5), wait=wait_fixed(2))
 async def verify_connection() -> None:
     """Attempt to connect to the database."""
     async with engine.begin() as conn:
         await conn.execute(text("SELECT 1"))
 
+
 async def init_db() -> None:
-    """Initialize database and verify connection."""
+    """Initialize database, run migrations, and verify connection."""
     try:
+        logger.info("Running database migrations...")
+        
+        alembic_cfg_path = "alembic.ini"
+        if not os.path.exists(alembic_cfg_path):
+             logger.warning(f"alembic.ini not found at {alembic_cfg_path}, migrations might fail")
+
+        # Run Alembic migrations in a separate thread to avoid asyncio loop conflicts
+        alembic_cfg = Config(alembic_cfg_path)
+        await asyncio.to_thread(command.upgrade, alembic_cfg, "head")
+        
+        logger.info("Database migrations applied successfully")
+
         await verify_connection()
         logger.info("Database connection verified successfully")
     except Exception as e:
-        logger.critical(f"DATABASE CONNECTION FAIL: {e}")
+        logger.critical(f"DATABASE STARTUP FAIL: {e}")
         raise RuntimeError(f"Database unavailable: {e}")
 
 
