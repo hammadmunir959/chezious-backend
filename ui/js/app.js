@@ -93,6 +93,8 @@ async function saveUserName() {
         await api.createUser(userId, name, city);
     } catch (e) {
         console.error('Failed to create user in backend', e);
+        alert(e.message);
+        return;
     }
 
     localStorage.setItem('user_id', userId);
@@ -282,26 +284,25 @@ async function sendMessage() {
     scrollToBottom();
 
     try {
-        // Create session if it doesn't exist (lazy creation)
+        // Generate session ID client-side if it doesn't exist
         let sessionId = state.currentSession.id;
 
         if (!sessionId) {
-            console.log('Creating new session for first message...');
-            // Pass user context for location-aware responses
-            const session = await api.createSession(
-                state.user.id,
-                state.user.name,
-                state.user.city
-            );
-
-            sessionId = session.id; // Store the new session ID
+            console.log('Generating new session ID for first message...');
+            // Generate UUID v4 client-side
+            sessionId = crypto.randomUUID();
 
             appState.setState({
-                currentSession: session
+                currentSession: {
+                    id: sessionId,
+                    created_at: new Date().toISOString(),
+                    message_count: 0,
+                    status: 'active'
+                }
             });
 
-            localStorage.setItem('last_session_id', session.id);
-            updateSessionInfo(session.id);
+            localStorage.setItem('last_session_id', sessionId);
+            updateSessionInfo(sessionId);
         }
 
         // Show typing indicator
@@ -406,31 +407,33 @@ async function updateUserProfile() {
         return;
     }
 
-    const newUserId = newName.toLowerCase().replace(/\s+/g, '_');
+    const state = appState.getState();
+    const userId = state.user.id; // Keep original user_id
 
-    localStorage.setItem('user_id', newUserId);
+    // Update backend via PUT
+    try {
+        await api.updateUser(userId, newName, newCity);
+    } catch (e) {
+        console.error('Failed to update user in backend', e);
+        alert(e.message);
+        return;
+    }
+
     localStorage.setItem('user_name', newName);
     if (newCity) {
         localStorage.setItem('user_city', newCity);
     }
 
-    // Update backend
-    try {
-        await api.createUser(newUserId, newName, newCity);
-    } catch (e) {
-        console.error('Failed to update user in backend', e);
-    }
-
     appState.setState({
-        user: { id: newUserId, name: newName, city: newCity }
+        user: { id: userId, name: newName, city: newCity }
     });
 
     updateUserNameDisplay(newName);
     closeSettings();
 
-    // Reload app with new user
-    location.reload();
+    alert('Profile updated successfully!');
 }
+
 
 async function clearAllHistory() {
     if (!confirm('Are you sure you want to clear all chat history? This cannot be undone.')) {

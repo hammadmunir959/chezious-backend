@@ -74,6 +74,7 @@ class CheziousBotAPI {
         }
     }
 
+
     /**
      * Get session details
      */
@@ -169,12 +170,43 @@ class CheziousBotAPI {
             });
 
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                const errorData = await response.json();
+                if (response.status === 409) {
+                    throw new Error('Username already exists. Please choose a different name.');
+                }
+                throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
             }
 
             return await response.json();
         } catch (error) {
             console.error('Failed to create/update user:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Update an existing user's profile
+     */
+    async updateUser(userId, name = null, city = null) {
+        try {
+            const body = {};
+            if (name !== null) body.name = name;
+            if (city !== null) body.city = city;
+
+            const response = await fetch(`${this.baseURL}/users/${userId}`, {
+                method: 'PUT',
+                headers: this.getHeaders(),
+                body: JSON.stringify(body),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error('Failed to update user:', error);
             throw error;
         }
     }

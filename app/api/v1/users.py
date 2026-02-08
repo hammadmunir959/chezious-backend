@@ -11,9 +11,75 @@ from app.schemas.user import (
     UserSessionSummary,
     UserWithSessions,
     UserCreate,
+    UserUpdate,
+    UserResponse,
 )
 
 router = APIRouter(prefix="/users")
+
+
+@router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+async def create_user(
+    request: UserCreate,
+    session: AsyncSession = Depends(get_session),
+) -> UserResponse:
+    """Create a new user."""
+    service = UserService(session)
+    user = await service.create_user(
+        request.user_id,
+        request.name,
+        request.city,
+    )
+
+    return UserResponse(
+        user_id=user.user_id,
+        name=user.name,
+        city=user.city,
+        created_at=user.created_at,
+        session_count=user.session_count,
+    )
+
+
+@router.get("/{user_id}", response_model=UserResponse)
+async def get_user(
+    user_id: str,
+    session: AsyncSession = Depends(get_session),
+) -> UserResponse:
+    """Get a single user by ID."""
+    service = UserService(session)
+    user = await service.get_user(user_id)
+
+    return UserResponse(
+        user_id=user.user_id,
+        name=user.name,
+        city=user.city,
+        created_at=user.created_at,
+        session_count=user.session_count,
+    )
+
+
+@router.put("/{user_id}", response_model=UserResponse)
+async def update_user(
+    user_id: str,
+    request: UserUpdate,
+    session: AsyncSession = Depends(get_session),
+) -> UserResponse:
+    """Update a user's profile."""
+    service = UserService(session)
+    user = await service.update_user(
+        user_id,
+        request.name,
+        request.city,
+    )
+
+    return UserResponse(
+        user_id=user.user_id,
+        name=user.name,
+        city=user.city,
+        created_at=user.created_at,
+        session_count=user.session_count,
+    )
+
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
@@ -24,26 +90,6 @@ async def delete_user(
     service = UserService(session)
     await service.delete_user(user_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.post("/", response_model=UserCreate)
-async def create_user(
-    request: UserCreate,
-    session: AsyncSession = Depends(get_session),
-) -> UserCreate:
-    """Create or update a user."""
-    service = UserService(session)
-    user = await service.get_or_create_user(
-        request.user_id, 
-        request.name,
-        request.city,
-    )
-    
-    return UserCreate(
-        user_id=user.user_id,
-        name=user.name,
-        city=user.city,
-    )
 
 
 @router.get("/", response_model=list[UserWithSessions])

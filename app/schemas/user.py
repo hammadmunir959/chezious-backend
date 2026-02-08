@@ -6,11 +6,28 @@ from pydantic import BaseModel, Field
 
 
 class UserCreate(BaseModel):
-    """Request to create or update a user."""
+    """Request to create a new user."""
 
     user_id: str = Field(..., min_length=1, max_length=50)
     name: str | None = Field(None, max_length=100)
     city: str | None = Field(None, max_length=100)
+
+
+class UserUpdate(BaseModel):
+    """Request to update a user's profile."""
+
+    name: str | None = Field(None, max_length=100)
+    city: str | None = Field(None, max_length=100)
+
+
+class UserResponse(BaseModel):
+    """Response for user operations."""
+
+    user_id: str
+    name: str | None = None
+    city: str | None = None
+    created_at: datetime
+    session_count: int = 0
 
 class UserSessionSummary(BaseModel):
     """Summary of a user's session."""

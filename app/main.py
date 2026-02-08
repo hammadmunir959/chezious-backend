@@ -76,6 +76,7 @@ async def chatbot_exception_handler(
     status_map = {
         "SESSION_NOT_FOUND": 404,
         "USER_NOT_FOUND": 404,
+        "USER_ALREADY_EXISTS": 409,
         "VALIDATION_ERROR": 400,
         "RATE_LIMIT_EXCEEDED": 429,
         "DATABASE_ERROR": 503,

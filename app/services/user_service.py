@@ -6,7 +6,7 @@ from sqlalchemy import select
 from app.models.user import User
 from app.models.session import ChatSession
 from app.schemas.user import UserWithSessions, UserSessionSummary
-from app.core.exceptions import UserNotFoundException
+from app.core.exceptions import UserNotFoundException, UserAlreadyExistsException
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -18,12 +18,72 @@ class UserService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def create_user(
+        self, user_id: str, name: str | None = None, city: str | None = None
+    ) -> User:
+        """
+        Create a new user. Raises exception if user already exists.
+
+        Args:
+            user_id: The username/user_id string
+            name: Optional display name for the user
+            city: Optional city/location for the user
+
+        Returns:
+            User instance
+
+        Raises:
+            UserAlreadyExistsException: If user already exists
+        """
+        # Check if user exists
+        result = await self.db.execute(
+            select(User).where(User.user_id == user_id)
+        )
+        if result.scalar_one_or_none():
+            raise UserAlreadyExistsException(user_id)
+
+        # Create new user
+        user = User(user_id=user_id, name=name, city=city)
+        self.db.add(user)
+        await self.db.flush()
+
+        logger.info(f"Created new user: {user_id}")
+        return user
+
+    async def update_user(
+        self, user_id: str, name: str | None = None, city: str | None = None
+    ) -> User:
+        """
+        Update an existing user's profile.
+
+        Args:
+            user_id: The username/user_id string
+            name: Optional new display name
+            city: Optional new city/location
+
+        Returns:
+            Updated User instance
+
+        Raises:
+            UserNotFoundException: If user doesn't exist
+        """
+        user = await self.get_user(user_id)
+
+        if name is not None:
+            user.name = name
+        if city is not None:
+            user.city = city
+
+        await self.db.flush()
+        logger.info(f"Updated user: {user_id}")
+        return user
+
     async def get_or_create_user(
         self, user_id: str, name: str | None = None, city: str | None = None
     ) -> User:
         """
         Get existing user or create a new one.
-
+        
         Args:
             user_id: The username/user_id string
             name: Optional display name for the user

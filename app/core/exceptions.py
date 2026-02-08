@@ -57,6 +57,17 @@ class UserNotFoundException(ChatBotException):
         )
 
 
+class UserAlreadyExistsException(ChatBotException):
+    """Raised when a user already exists."""
+
+    def __init__(self, user_id: str):
+        super().__init__(
+            message=f"User with ID '{user_id}' already exists",
+            code="USER_ALREADY_EXISTS",
+            details={"user_id": user_id},
+        )
+
+
 class GroqAPIException(ChatBotException):
     """Raised when Groq API call fails."""
 

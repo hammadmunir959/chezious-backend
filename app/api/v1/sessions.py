@@ -7,41 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_session
 from app.services.session_service import SessionService
 from app.services.context_service import ContextService
-from app.schemas.session import SessionCreate, SessionResponse
+from app.schemas.session import SessionResponse
 from app.schemas.chat import MessagesResponse, ChatMessage
 
 router = APIRouter(prefix="/sessions")
-
-
-@router.post(
-    "",
-    response_model=SessionResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def create_session(
-    request: SessionCreate,
-    session: AsyncSession = Depends(get_session),
-) -> SessionResponse:
-    """Create a new chat session."""
-    service = SessionService(session)
-    chat_session = await service.create_session(
-        user_id=request.user_id, 
-        persist=False,
-        user_name=request.name,
-        location=request.location,
-    )
-    # Commit to ensure session is visible to other requests
-    await session.commit()
-
-    return SessionResponse(
-        id=chat_session.id,
-        user_id=chat_session.user_id,
-        created_at=chat_session.created_at,
-        status=chat_session.status,
-        message_count=chat_session.message_count,
-        user_name=chat_session.user_name,
-        location=chat_session.location,
-    )
 
 
 @router.get("/{session_id}", response_model=SessionResponse)
