@@ -29,9 +29,6 @@ COPY app/ ./app/
 COPY alembic/ ./alembic/
 COPY alembic.ini .
 
-# Copy UI static files
-COPY ui/ ./ui/
-
 # Create directory for SQLite database
 RUN mkdir -p /app/data
 
