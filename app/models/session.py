@@ -76,12 +76,6 @@ class ChatSession(SQLModel, table=True):
         description="Timestamp of the most recent message or interaction"
     )
     
-    expires_at: datetime | None = Field(
-        default=None,
-        index=True,
-        description="Optional expiration date for the session"
-    )
-    
     # Relationships
     user: "User" = Relationship(back_populates="sessions")
     messages: list["Message"] = Relationship(
@@ -107,9 +101,3 @@ class ChatSession(SQLModel, table=True):
         """Returns True if the session is in 'active' state and not expired."""
         return self.status == SessionStatus.ACTIVE and not self.is_expired
 
-    @property
-    def is_expired(self) -> bool:
-        """Returns True if the current time is past the expiration date (if set)."""
-        if self.expires_at is None:
-            return False
-        return utc_now() > self.expires_at
