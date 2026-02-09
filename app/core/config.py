@@ -63,7 +63,21 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    """Get cached settings instance."""
+    """
+    Get cached settings instance.
+    
+    @lru_cache (Least Recently Used Cache) Explanation:
+    ---------------------------------------------------
+    This decorator caches the result of this function IN MEMORY (RAM).
+    
+    *   **Where is it cached?** inside the Python process itself. It is specific to this running instance of the app.
+    *   **No Redis Required:** This is a standard Python feature (`functools`), not an external service.
+    
+    1. The FIRST time this is called, it executes `Settings()`, which reads the .env file (expensive operation).
+    2. FUTURE calls return the stored `Settings` object instantly from memory.
+    
+    Why: Improves performance by avoiding re-reading the .env file on every request.
+    """
     return Settings()
 
 

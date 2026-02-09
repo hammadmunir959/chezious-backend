@@ -53,6 +53,10 @@ async def init_db() -> None:
 
         # Run Alembic migrations in a separate thread to avoid asyncio loop conflicts
         alembic_cfg = Config(alembic_cfg_path)
+        # IMPORTANT: Prevent Alembic from overriding our logging config
+        alembic_cfg.set_main_option("script_location", "alembic")
+        alembic_cfg.attributes['configure_logger'] = False
+        
         await asyncio.to_thread(command.upgrade, alembic_cfg, "head")
         
         logger.info("Database migrations applied successfully")

@@ -24,12 +24,6 @@ class HealthResponse(BaseModel):
     status: str
     timestamp: datetime
     version: str | None = None
+    database: str = "unknown"
+    groq: str = "unknown"
 
-
-class ReadyResponse(BaseModel):
-    """Readiness check response schema."""
-
-    status: str
-    timestamp: datetime
-    database: str
-    groq: str

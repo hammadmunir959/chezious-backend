@@ -1,7 +1,7 @@
 """SSE (Server-Sent Events) streaming utilities"""
 
-import asyncio
-from typing import AsyncGenerator, Any
+
+from typing import AsyncGenerator
 from sse_starlette.sse import EventSourceResponse
 
 
@@ -19,10 +19,4 @@ async def create_sse_response(
     return EventSourceResponse(event_generator(), media_type=media_type)
 
 
-async def stream_tokens(
-    tokens: list[str], delay: float = 0.01
-) -> AsyncGenerator[str, None]:
-    """Stream tokens with a delay (for testing)."""
-    for token in tokens:
-        yield token
-        await asyncio.sleep(delay)
+

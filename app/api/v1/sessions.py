@@ -1,21 +1,24 @@
 """Session-related endpoints"""
 
 from uuid import UUID
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Path
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
 from app.services.session_service import SessionService
 from app.services.context_service import ContextService
-from app.schemas.session import SessionResponse
+from app.schemas.session import SessionResponse, SessionCreate
 from app.schemas.chat import MessagesResponse, ChatMessage
 
-router = APIRouter(prefix="/sessions")
+router = APIRouter(prefix="/sessions", tags=["Sessions"])
+
+
+
 
 
 @router.get("/{session_id}", response_model=SessionResponse)
 async def get_session_details(
-    session_id: UUID,
+    session_id: UUID = Path(..., title="Session ID", description="The unique identifier of the session"),
     session: AsyncSession = Depends(get_session),
 ) -> SessionResponse:
     """Get session details."""
@@ -35,7 +38,7 @@ async def get_session_details(
 
 @router.get("/{session_id}/messages", response_model=MessagesResponse)
 async def get_session_messages(
-    session_id: UUID,
+    session_id: UUID = Path(..., title="Session ID", description="The unique identifier of the session to fetch messages for"),
     session: AsyncSession = Depends(get_session),
 ) -> MessagesResponse:
     """Get all messages for a session."""
@@ -62,7 +65,7 @@ async def get_session_messages(
 
 @router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_session(
-    session_id: UUID,
+    session_id: UUID = Path(..., title="Session ID", description="The unique identifier of the session to delete"),
     session: AsyncSession = Depends(get_session),
 ) -> None:
     """Delete a session."""

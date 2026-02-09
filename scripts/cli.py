@@ -11,16 +11,6 @@ from uuid import UUID, uuid4
 API_BASE = "http://localhost:8000/api/v1"
 
 
-async def create_user(client: httpx.AsyncClient, user_id: str, name: str, city: str | None = None) -> dict:
-    """Create or update a user."""
-    payload = {"user_id": user_id, "name": name}
-    if city:
-        payload["city"] = city
-    response = await client.post(f"{API_BASE}/users/", json=payload)
-    response.raise_for_status()
-    return response.json()
-
-
 async def stream_chat(
     client: httpx.AsyncClient,
     session_id: UUID,
@@ -83,45 +73,58 @@ async def main():
     print("\nType your message and press Enter.")
     print("Commands: /new (new session), /quit (exit)\n")
 
-    # Get user info
-    try:
-        name = input("Enter your name: ").strip() or "Guest"
-    except (KeyboardInterrupt, EOFError):
-        print("\n\n👋 Goodbye!")
-        return
-        
-    user_id = name.lower().replace(" ", "_")
-    
-    # Get city for location-aware responses
-    print("\nCities: Lahore, Islamabad, Rawalpindi, Peshawar, Kasur, Mardan, Sahiwal")
-    try:
-        city = input("Enter your city (optional): ").strip() or None
-    except (KeyboardInterrupt, EOFError):
-        print("\n\n👋 Goodbye!")
-        return
-    
-    print(f"\nHello, {name}! Setting up...\n")
+    print("Commands: /new (new session), /quit (exit)\n")
 
     async with httpx.AsyncClient() as client:
-        try:
-            # Create/update user
-            await create_user(client, user_id, name, city)
-            print("✅ User registered")
-            
-            # Generate session ID locally (lazy creation on first message)
-            session_id = generate_session_id()
-            print(f"✅ Session ready: {str(session_id)[:8]}...\n")
-        except httpx.HTTPError as e:
-            print(f"❌ Failed to connect: {e}")
-            print("Make sure the server is running: uvicorn app.main:app --reload")
-            return
-        except asyncio.CancelledError:
-            print("\n\n👋 Goodbye!")
-            return
+        # Get user info loop
+        while True:
+            try:
+                username = input("Enter your unique username (user_id): ").strip()
+                if not username:
+                    print("Username cannot be empty.")
+                    continue
+                
+                name = input("Enter your display name: ").strip() or username
+                
+                print("\nCities: Lahore, Islamabad, Rawalpindi, Peshawar, Kasur, Mardan, Sahiwal")
+                city = input("Enter your city (optional): ").strip() or None
+                
+                user_id = username
+                
+                print(f"\nHello, {name}! Registering...\n")
+                
+                # Try to create user
+                try:
+                    payload = {"user_id": user_id, "name": name}
+                    if city:
+                        payload["city"] = city
+                    
+                    response = await client.post(f"{API_BASE}/users/", json=payload)
+                    
+                    if response.status_code == 409:
+                        print(f"❌ Username '{user_id}' already exists! Please choose another one.\n")
+                        continue
+                        
+                    response.raise_for_status()
+                    print("✅ User registered successfully")
+                    break  # Exit loop on success
+                    
+                except httpx.HTTPError as e:
+                    print(f"❌ Failed to connect: {e}")
+                    print("Make sure the server is running: uvicorn app.main:app --reload")
+                    return
+
+            except (KeyboardInterrupt, EOFError):
+                print("\n\n👋 Goodbye!")
+                return
+
+        # Generate session ID locally (lazy creation on first message)
+        session_id = generate_session_id()
+        print(f"✅ Session ready: {str(session_id)[:8]}...\n")
 
         while True:
             try:
-                user_input = input("You: ").strip()
+                user_input = input(f"\n{user_id} > ").strip()
 
                 if not user_input:
                     continue

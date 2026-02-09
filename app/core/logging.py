@@ -3,8 +3,10 @@
 import logging
 import json
 import sys
+import os
 from datetime import datetime, timezone
 from typing import Any
+from logging.handlers import RotatingFileHandler
 from contextvars import ContextVar
 
 from app.core.config import settings
@@ -15,55 +17,7 @@ session_id_var: ContextVar[str | None] = ContextVar("session_id", default=None)
 user_id_var: ContextVar[str | None] = ContextVar("user_id", default=None)
 
 
-class ColoredFormatter(logging.Formatter):
-    """Human-readable colored formatter for development."""
 
-    # ANSI color codes
-    COLORS = {
-        "DEBUG": "\033[36m",  # Cyan
-        "INFO": "\033[32m",  # Green
-        "WARNING": "\033[33m",  # Yellow
-        "ERROR": "\033[31m",  # Red
-        "CRITICAL": "\033[35m",  # Magenta
-    }
-    RESET = "\033[0m"
-    BOLD = "\033[1m"
-    DIM = "\033[2m"
-
-    def format(self, record: logging.LogRecord) -> str:
-        # Get color for level
-        color = self.COLORS.get(record.levelname, "")
-
-        # Format timestamp
-        timestamp = datetime.now().strftime("%H:%M:%S")
-
-        # Build the log message
-        parts = [
-            f"{self.DIM}{timestamp}{self.RESET}",
-            f"{color}{record.levelname:8}{self.RESET}",
-            f"{self.BOLD}{record.name}{self.RESET}",
-        ]
-
-        # Add context if present
-        context_parts = []
-        if request_id := request_id_var.get():
-            context_parts.append(f"req={request_id[:8]}")
-        if session_id := session_id_var.get():
-            context_parts.append(f"session={session_id[:8]}")
-        if user_id := user_id_var.get():
-            context_parts.append(f"user={user_id}")
-
-        if context_parts:
-            parts.append(f"{self.DIM}[{' '.join(context_parts)}]{self.RESET}")
-
-        # Add the actual message
-        parts.append(f"→ {record.getMessage()}")
-
-        # Add exception if present
-        if record.exc_info:
-            parts.append(f"\n{self.formatException(record.exc_info)}")
-
-        return " ".join(parts)
 
 
 class JSONFormatter(logging.Formatter):
@@ -103,26 +57,47 @@ def setup_logging() -> None:
     root_logger = logging.getLogger()
     root_logger.setLevel(settings.log_level)
 
-    # Remove existing handlers
-    for handler in root_logger.handlers[:]:
-        root_logger.removeHandler(handler)
-
-    # Add handler with appropriate formatter
-    handler = logging.StreamHandler(sys.stdout)
     
-    # Use colored formatter for development, JSON for production
-    if settings.debug:
-        handler.setFormatter(ColoredFormatter())
-    else:
-        handler.setFormatter(JSONFormatter())
+    # 1. File Handler (JSON) - Captures EVERYTHING
+    # Ensure logs directory exists
+    log_dir = "logs"
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
         
-    root_logger.addHandler(handler)
+    file_handler = RotatingFileHandler(
+        filename=f"{log_dir}/app.log",
+        maxBytes=5 * 1024 * 1024,  # 5 MB
+        backupCount=1,
+        encoding="utf-8"
+    )
+    file_handler.setFormatter(JSONFormatter())
+    
+    # 2. Console Handler (Standard Text) - For app internal logs
+    stream_handler = logging.StreamHandler(sys.stdout)
+    stream_formatter = logging.Formatter("%(levelname)s:     %(name)s - %(message)s")
+    stream_handler.setFormatter(stream_formatter)
+    
+    # Configure Root Logger
+    root_logger.handlers = [file_handler, stream_handler]
 
-    # Reduce noise from third-party libraries
-    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-    logging.getLogger("uvicorn.error").setLevel(logging.INFO)
-    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
-    logging.getLogger("httpx").setLevel(logging.WARNING)
+    # 3. Attach File Handler to external loggers
+    
+    # Group A: Keep Console + Add File (Uvicorn, FastAPI)
+    # We do NOT remove existing handlers (so Uvicorn keeps its console output)
+    for logger_name in ["uvicorn", "uvicorn.error", "uvicorn.access", "fastapi"]:
+        log = logging.getLogger(logger_name)
+        log.addHandler(file_handler)
+        log.propagate = False
+        
+    # Group B: Silence Console + Add File (Database, Migrations)
+    # We remove default handlers to stop them from printing to console
+    for logger_name in ["sqlalchemy.engine", "alembic"]:
+        log = logging.getLogger(logger_name)
+        log.handlers = []
+        log.addHandler(file_handler)
+        log.propagate = False
+
+    # Silence noisy ones if needed
     logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
@@ -132,7 +107,9 @@ def get_logger(name: str) -> logging.Logger:
 
 
 class LogContext:
-    """Context manager for setting log context variables."""
+    """
+    Context manager for setting log context variables.
+    """
 
     def __init__(
         self,

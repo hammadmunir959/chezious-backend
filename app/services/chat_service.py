@@ -53,45 +53,63 @@ class ChatService:
 
         return content
 
+    async def resolve_session(self, session_id: UUID | None, user_id: str | None) -> UUID:
+        """
+        Resolve the session ID to use for the chat.
+        
+        - Checks if provided session_id exists and is valid for the user.
+        - Creates a new session if ID is missing, invalid, or unauthorized.
+        """
+        if session_id:
+            try:
+                existing_session = await self.session_service.get_session(session_id)
+                
+                # Check ownership if user_id is provided
+                if user_id and existing_session.user_id != user_id:
+                    logger.warning(
+                        f"Session {session_id} belongs to user {existing_session.user_id}, "
+                        f"not {user_id}. Creating new session."
+                    )
+                    session_id = None
+                else:
+                    logger.info(f"Resuming existing session {session_id}")
+                    return session_id
+            except SessionNotFoundException:
+                logger.warning(f"Provided session {session_id} not found. Creating new session.")
+                session_id = None
+
+        # Create new session if execution reaches here
+        if not user_id:
+            raise ValidationException("user_id is required to create a new session")
+        
+        new_session = await self.session_service.create_session(user_id=user_id)
+        logger.info(f"Auto-created session {new_session.id} for user {user_id}")
+        return new_session.id
+
     async def handle_chat(
         self,
-        session_id: UUID,
         user_message: str,
+        session_id: UUID,  # Now expects a valid, resolved ID
         user_id: str | None = None,
     ) -> AsyncGenerator[str, None]:
         """
         Handle a chat request with streaming response.
-
-        Args:
-            session_id: The session UUID
-            user_message: The user's message
-            user_id: Optional user ID for lazy session creation
-
-        Yields:
-            Response tokens as they arrive
-
-        Raises:
-            ValidationException: If message validation fails
-            SessionNotFoundException: If session doesn't exist AND user_id not provided
+        Assumes session_id is valid and exists (resolved via resolve_session).
         """
         # 1. Validate input
         user_message = self.validate_message(user_message)
         logger.info(f"Processing chat for session {session_id}")
-
-        # 2. Verify or create session
+        
+        # 2. Re-verify session exists (should be cached/fast)
         try:
             chat_session = await self.session_service.get_session(session_id)
-            logger.debug(f"Session verified: {chat_session.id}")
         except SessionNotFoundException:
-            if user_id:
-                logger.info(
-                    f"Session {session_id} not found, creating new session for user {user_id}"
-                )
-                chat_session = await self.session_service.create_session_with_id(
-                    session_id, user_id
-                )
-            else:
-                raise
+            # Should not happen if resolve_session was called, but safety net:
+             raise ValidationException("Session not found after resolution")
+             
+        logger.debug(f"Session verified: {chat_session.id}")
+        
+        # 3. Save user message...
 
         # 3. Save user message
         await self.context_service.save_message(

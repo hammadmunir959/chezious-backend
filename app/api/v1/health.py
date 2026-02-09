@@ -5,40 +5,34 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
 from app.db.session import get_session
-from app.schemas.common import HealthResponse, ReadyResponse
+from app.schemas.common import HealthResponse
 from app.utils.time import utc_now
 from app.core.config import settings
 
-router = APIRouter()
+router = APIRouter(tags=["Health"])
 
 
 @router.get("/health", response_model=HealthResponse)
-async def health_check() -> HealthResponse:
-    """Basic health check endpoint."""
-    return HealthResponse(
-        status="healthy",
-        timestamp=utc_now(),
-        version=settings.app_version,
-    )
-
-
-@router.get("/health/ready", response_model=ReadyResponse)
-async def readiness_check(
+async def health_check(
     session: AsyncSession = Depends(get_session),
-) -> ReadyResponse:
+) -> HealthResponse:
     """
-    Readiness check including database and Groq connectivity.
+    Comprehensive health check.
+    
+    Verifies connectivity to:
+    - Database
+    - Groq API Client configuration
     """
     db_status = "ok"
     groq_status = "ok"
 
-    # Check database
+    # Check database connectivity
     try:
         await session.execute(text("SELECT 1"))
     except Exception:
         db_status = "error"
 
-    # Check Groq API (lightweight check - just verify client is configured)
+    # Check Groq API configuration/client availability
     try:
         from app.llm.groq_client import get_groq_client
         if not get_groq_client().client:
@@ -46,11 +40,12 @@ async def readiness_check(
     except Exception:
         groq_status = "error"
 
-    overall_status = "ready" if db_status == "ok" and groq_status == "ok" else "not_ready"
-
-    return ReadyResponse(
-        status=overall_status,
+    is_healthy = db_status == "ok" and groq_status == "ok"
+    
+    return HealthResponse(
+        status="healthy" if is_healthy else "unhealthy",
         timestamp=utc_now(),
+        version=settings.app_version,
         database=db_status,
         groq=groq_status,
     )

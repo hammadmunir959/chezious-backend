@@ -1,6 +1,6 @@
 """User-related endpoints"""
 
-from fastapi import APIRouter, Depends, status, Response
+from fastapi import APIRouter, Depends, status, Response, Query, Path
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
@@ -15,7 +15,7 @@ from app.schemas.user import (
     UserResponse,
 )
 
-router = APIRouter(prefix="/users")
+router = APIRouter(prefix="/users", tags=["Users"])
 
 
 @router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -42,7 +42,7 @@ async def create_user(
 
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
-    user_id: str,
+    user_id: str = Path(..., title="User ID", description="The unique identifier of the user"),
     session: AsyncSession = Depends(get_session),
 ) -> UserResponse:
     """Get a single user by ID."""
@@ -58,10 +58,10 @@ async def get_user(
     )
 
 
-@router.put("/{user_id}", response_model=UserResponse)
+@router.patch("/{user_id}", response_model=UserResponse)
 async def update_user(
-    user_id: str,
     request: UserUpdate,
+    user_id: str = Path(..., title="User ID", description="The unique identifier of the user to update"),
     session: AsyncSession = Depends(get_session),
 ) -> UserResponse:
     """Update a user's profile."""
@@ -83,7 +83,7 @@ async def update_user(
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
-    user_id: str,
+    user_id: str = Path(..., title="User ID", description="The unique identifier of the user to delete"),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
     """Delete a user and all their sessions."""
@@ -94,8 +94,8 @@ async def delete_user(
 
 @router.get("/", response_model=list[UserWithSessions])
 async def get_users_with_sessions(
-    limit: int = 50,
-    offset: int = 0,
+    limit: int = Query(50, ge=1, le=100, description="Max number of users to return"),
+    offset: int = Query(0, ge=0, description="Number of users to skip"),
     session: AsyncSession = Depends(get_session),
 ) -> list[UserWithSessions]:
     """Get all users with their active sessions."""
@@ -105,10 +105,10 @@ async def get_users_with_sessions(
 
 @router.get("/{user_id}/sessions", response_model=UserSessionsResponse)
 async def get_user_sessions(
-    user_id: str,
-    limit: int = 50,
-    offset: int = 0,
-    min_messages: int = 1, # Default to 1 to skip empty sessions
+    user_id: str = Path(..., title="User ID", description="The ID of the user to fetch sessions for"),
+    limit: int = Query(50, ge=1, le=100, description="Max number of sessions to return"),
+    offset: int = Query(0, ge=0, description="Number of sessions to skip"),
+    min_messages: int = Query(1, ge=0, description="Minimum messages required to include a session"),
     session: AsyncSession = Depends(get_session),
 ) -> UserSessionsResponse:
     """Get all sessions for a user."""

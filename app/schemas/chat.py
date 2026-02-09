@@ -10,8 +10,8 @@ from app.core.config import settings
 class ChatRequest(BaseModel):
     """Request to send a chat message."""
 
-    session_id: UUID
-    user_id: str | None = None
+    session_id: UUID | None = None
+
     message: str = Field(
         ...,
         min_length=1,
