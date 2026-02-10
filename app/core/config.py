@@ -52,8 +52,6 @@ class Settings(BaseSettings):
     allowed_origins: list[str] = [
         "http://localhost:8000",
         "http://127.0.0.1:8000",
-        "https://chezious-bot.onrender.com",
-        "https://chezious-bot.onrender.com/",
     ]
 
     # API Security

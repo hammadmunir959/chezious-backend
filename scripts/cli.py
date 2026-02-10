@@ -8,7 +8,17 @@ import httpx
 from uuid import UUID, uuid4
 
 
+
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 API_BASE = "http://localhost:8000/api/v1"
+API_KEY = os.getenv("API_KEY", "")
+
+if not API_KEY:
+    print("⚠️  Warning: API_KEY not found in .env file")
 
 
 async def stream_chat(
@@ -26,7 +36,11 @@ async def stream_chat(
         async with client.stream(
             "POST",
             f"{API_BASE}/chat",
-            json={"session_id": str(session_id), "message": message, "user_id": user_id},
+            json={"session_id": str(session_id), "message": message},
+            headers={
+                "X-User-ID": user_id,
+                "X-API-Key": API_KEY,
+            },
             timeout=60.0,
         ) as response:
             response.raise_for_status()
@@ -99,11 +113,15 @@ async def main():
                     if city:
                         payload["city"] = city
                     
-                    response = await client.post(f"{API_BASE}/users/", json=payload)
+                    response = await client.post(
+                        f"{API_BASE}/users/", 
+                        json=payload,
+                        headers={"X-API-Key": API_KEY}
+                    )
                     
                     if response.status_code == 409:
-                        print(f"❌ Username '{user_id}' already exists! Please choose another one.\n")
-                        continue
+                        print(f"ℹ️  Username '{user_id}' found. Logging in...\n")
+                        break
                         
                     response.raise_for_status()
                     print("✅ User registered successfully")
