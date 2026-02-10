@@ -123,20 +123,22 @@ def get_system_prompt(user_name: str | None = None, location: str | None = None)
         location: Optional user city for location-aware answers.
     """
     
-    # 1. Start with Core Identity & Guidelines
-    prompt_parts = [
-        IDENTITY_PROMPT,
-        INTERACTION_GUIDELINES,
+    # 1. Identity & Persona (Who you are)
+    prompt_parts = [IDENTITY_PROMPT]
+    
+    # 2. Knowledge Base (What you know)
+    # We label this clearly so the LLM knows this is reference data, not necessarily immediate output.
+    prompt_parts.append("## KNOWLEDGE BASE (REFERENCE ONLY)\n\n" + "\n\n".join([
         BUSINESS_INFO_PROMPT,
-        MENU_DATA_PROMPT
-    ]
+        MENU_DATA_PROMPT,
+        BRANCH_LOCATIONS_PROMPT
+    ]))
 
-    # 2. Add Branch Locations (Optimized by Location if possible)
-    # Note: We currently include all branches to be safe, but a smarter 
-    # implementation could filter `BRANCH_LOCATIONS_PROMPT` here.
-    prompt_parts.append(BRANCH_LOCATIONS_PROMPT)
+    # 3. Operational Rules (How you behave)
+    # Placed AFTER data to override any tendency to dump data.
+    prompt_parts.append(INTERACTION_GUIDELINES)
 
-    # 3. Add Dynamic User Context
+    # 4. Dynamic User Context (Who you are talking to)
     context_instructions = []
     if user_name:
         context_instructions.append(f"- **User Name**: {user_name} (Address them warmly).")
@@ -149,5 +151,13 @@ def get_system_prompt(user_name: str | None = None, location: str | None = None)
     if context_instructions:
         prompt_parts.append("## CURRENT CONTEXT\n" + "\n".join(context_instructions))
 
-    # 4. Final Assembly
+    # 5. Final Command (Strict Override)
+    prompt_parts.append("""
+## CRITICAL REMINDER
+- ⚠️ **DO NOT DUMP THE MENU**. If asked for "menu", provide specific categories ONLY.
+- ⚠️ **DO NOT HALLUCINATE**. Use the "KNOWLEDGE BASE" above for prices.
+- ⚠️ **KEEP IT CONCISE**. Short answers are better.
+""")
+
+    # 6. Final Assembly
     return "\n\n".join(prompt_parts)
